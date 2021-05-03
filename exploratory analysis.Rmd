@@ -1,0 +1,99 @@
+---
+title: "exploratory analysis"
+author: "Qing Wen"
+date: "2021/3/27"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+library(tidyverse)
+library(lme4)
+```
+
+```{r}
+# read in the datasets
+curr_employee <- read_csv("data/black-saber-current-employees.csv")
+```
+
+## Current employee data
+
+```{r}
+# salary distribution filled by gender
+curr_1 <- curr_employee %>% 
+  mutate(salary = str_replace(salary, "\\$", "")) %>% 
+  mutate(salary = as.integer(str_replace(salary, ",", ""))) 
+curr_1%>% 
+  group_by(employee_id, gender, team) %>% 
+  summarize(mean_wage = mean(salary)) %>% 
+  ggplot(aes(x = mean_wage, fill = gender)) +
+  geom_histogram() +
+  theme_minimal() +
+  facet_wrap(~team) +
+  labs(x="Mean salary", y="Number of employees", title="Distribution of mean salary of each current employees",subtitle="Classifed by genders") +
+  scale_fill_manual(values = c("#FFC300", "#D5F2DF", "#538708"))
+
+# summary statistics for different gender groups
+summary(curr_1[curr_1$gender == "Man",])
+summary(curr_1[curr_1$gender == "Woman",])
+summary(curr_1[curr_1$gender == "Prefer not to say",])
+```
+
+```{r}
+# productivity vs. salary by role_seniority
+curr_1 %>% 
+  ggplot(aes(x = productivity, y = salary, color = gender)) +
+  geom_point() +
+  theme_minimal() +
+  facet_wrap(~role_seniority)
+
+# gender vs. leadership_for_level
+table(curr_1$gender, curr_1$leadership_for_level)
+
+curr_1 %>% 
+  ggplot(aes(x = productivity, y = salary, color = gender)) +
+  geom_point() +
+  theme_minimal() +
+  facet_wrap(~leadership_for_level)
+```
+
+```{r}
+# man vs woman employees current level satistication
+curr_1%>% 
+  group_by(employee_id, gender, leadership_for_level) %>% 
+  summarize(mean_wage = mean(salary)) %>% 
+  filter(gender != "Prefer not to say") %>%
+  ggplot(aes(x = mean_wage, fill=leadership_for_level)) +
+  facet_wrap(~gender) +
+  geom_histogram() +
+  theme_minimal() +
+  #coord_flip() +
+  stat_bin(bins=25) +
+  labs(x="Mean salary", y="Number of employees", title="Distribution of mean salary of each current employees",subtitle="Classifed by satisfication", fill = "Satisfication") +
+  scale_fill_manual(values = c("#FFC300", "#D5F2DF", "#538708"))
+```
+
+```{r}
+# model without productivity
+mod_noprod <- lmer(salary ~ leadership_for_level + (1|employee_id), data = curr_1)
+# model with productivity
+mod_nogender <- lmer(salary ~ productivity + leadership_for_level + (1|employee_id), data = curr_1)
+lmtest::lrtest(mod_noprod, mod_nogender)
+
+# model with gender
+salary_mod <- lmer(salary ~ productivity + leadership_for_level + gender + (1|employee_id), data = curr_1)
+lmtest::lrtest(mod_nogender, salary_mod)
+
+# model with an additional predictor: role_seniority
+mod_senior <- lmer(salary ~ productivity + leadership_for_level + gender + role_seniority 
+                    + (1|employee_id), data = curr_1)
+lmtest::lrtest(salary_mod, mod_senior)
+
+summary(salary_mod)
+fixef(salary_mod)
+```
+
+- we try to fit a linear mixed effect model with `salary` as the response, `productivity` and `leadership_for_level` as predictors. We treat `employee_id` as our random effects. A more complex model `salary_mod` is fit with the above covariates with an additional `gender` predictor. With a LRT, the result shows that the variable `gender` is significant in determining an employee's salary
+- we need `gender`, `productivity`, `role_seniority` in the model
+
+

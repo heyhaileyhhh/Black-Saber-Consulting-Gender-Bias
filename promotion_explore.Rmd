@@ -1,0 +1,142 @@
+## make data tidy
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(lme4)
+library(knitr)
+library(readr)
+```
+
+```{r}
+curr_employee <- read_csv("/Users/krist/Documents/303 final project/data/black-saber-current-employees.csv")
+```
+
+```{r}
+#unique(curr_employee$role_seniority)
+
+#rename role seniority
+curr_employee <-curr_employee %>%
+  mutate(role_seniority= case_when(
+    role_seniority == "Entry-level" ~ "1",
+    role_seniority == "Junior I" ~"2",
+    role_seniority == "Junior II" ~"3",
+    role_seniority == "Senior I" ~"4",
+    role_seniority == "Senior II" ~"5",
+    role_seniority == "Senior III" ~"6",
+    role_seniority == "Manager" ~"7",
+    role_seniority == "Director" ~"8",
+    role_seniority == "Vice president" ~"9"
+  ))
+curr_employee$role_seniority <- as.numeric(curr_employee$role_seniority)
+head(curr_employee)
+```
+
+```{r}
+level<- curr_employee%>%
+  group_by(employee_id,leadership_for_level)%>%
+  summarise(b=n())%>%
+  pivot_wider(names_from= "leadership_for_level",values_from="b")%>%
+   mutate_if(is.numeric,replace_na, replace=0)
+level
+```
+
+```{r}
+clean <-curr_employee%>%
+  group_by(employee_id,gender,team)%>%
+  summarise(promotion_counts=max(role_seniority)-min(role_seniority),
+            productivity_improvement=max(productivity)-min(productivity),
+            num_quarters=n(),
+            avg_promotion=round(promotion_counts/(num_quarters/4),2),)%>%
+  full_join(level)
+clean 
+```
+
+```{r}
+clean%>%
+  ggplot() +
+  geom_bar(mapping = aes(x = avg_promotion, fill=gender))
+```
+
+```{r}
+clean%>%
+  ggplot() +
+  geom_bar(mapping = aes(x = promotion_counts, fill=gender))
+```
+
+Above is the graph of the counts of total promotions during individuals' career stage. Most people experience no promotion. Very few people have get promoted many times of  making for a distribution that appears to be far from normal. Therefore, Poisson regression should be used to model our data. Specifically, poisson random variables are often used to represent counts (i.e. counts of promotion) 
+
+## model selection
+However, a Poisson regression model is a good first choice because the responses are counts(non negative whole number), it is important to note that the counts are not directly comparable because they are measured in terms of different scales of time. In other words, we expect people working longer to be more likely to have more promotions.
+
+
+```{r}
+table1 <-table(clean$gender,clean$promotion_counts)
+```
+
+explore whether team is correlated with promotion
+```{r}
+table2 <-table(clean$team,clean$promotion_counts)
+conditional1<-prop.table()
+table2
+```
+
+```{r}
+clean %>%
+  ggplot(mapping = aes(x = productivity_improvement, y = promotion_counts,color = gender))+
+  geom_point()
+```
+
+
+```{r}
+x <- curr_employee %>%
+  pivot_wider(-c(gender,team,leadership_for_level,productivity,salary),names_from= "financial_q",values_from="role_seniority")
+x
+```
+
+
+Model Assumptions
+
+```{r}
+clean <- clean%>%
+  mutate(team, team_num =case_when(
+    team == "Client services"~1,
+    team == "Data"~2,
+    team == "Design Legal and financial"~3,
+    team == "Marketing and sales"~4,
+    team == "Operations"~5,
+    team == "People and talent"~6,
+    team == "Software"~7  ))
+
+qqnorm(clean$employee_id)
+qqline(clean$employee_id, col = "orange", lwd=2)
+```
+
+
+```{r}
+clean <- clean%>%
+  mutate(team, team_num =case_when(
+    team == "Client services"~1,
+    team == "Data"~2,
+    team == "Design Legal and financial"~3,
+    team == "Marketing and sales"~4,
+    team == "Operations"~5,
+    team == "People and talent"~6,
+    team == "Software"~7  ))
+
+qqnorm(clean$team_num)
+qqline(clean$team_num, col = "orange", lwd=2)
+```
+
+```{r}
+hist(clean$promotion_counts)
+
+y = clean$promotion_counts
+n = length(y)
+x=table(y)
+k=as.numeric(names(x))
+plot(k,log(x)+lfactorial(k))
+
+mean(y)
+var(y)
+```

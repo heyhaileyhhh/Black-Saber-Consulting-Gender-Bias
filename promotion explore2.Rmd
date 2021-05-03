@@ -1,0 +1,280 @@
+---
+title: "Report title"
+subtitle: "Subtitle"
+author: "Report prepared for Black Saber Software by Eminence Analytics"
+date: 2021-04-21
+lang: "en"
+output:
+  pdf_document:
+    template: report.tex
+    toc: true
+    toc_depth: 2
+titlepage: true
+titlepage-color: "6C3082"
+titlepage-text-color: "FFFFFF"
+titlepage-rule-color: "FFFFFF"
+titlepage-rule-height: 2
+---
+
+```{r echo=FALSE, message=FALSE}
+library(tidyverse)
+# this should supress all code and messages
+knitr::opts_chunk$set(include=FALSE)
+```
+
+# General comments (you can delete this section)
+
+_You can delete this section, and if you want to check what it said, just open a template from the package again. You don't have to use this particular template, but you DO need to write you report in RMarkdown and include a cover page._
+
+_The cover page must have:_
+
+*	_A title and subtitle_
+* _"Report prepared for Black Saber Software by" your company name_
+*	_Date (assessment submission date is fine)_
+
+_You can change the colour of this cover to any colour you would like by replacing 6C3082 in the YAML above (line 11) to another hex code. You could use this tool to help you:_ https://htmlcolorcodes.com/color-picker/
+
+\newpage
+# Executive summary
+
+_Guidelines for the executive summary:_
+
+* _No more than two pages_
+* _Language is appropriate for a non-technical audience_
+* _Bullet points are used where appropriate_
+*	_A small number of key visualizations and/or tables are included_
+*	_All three research questions are addressed_
+
+
+\newpage
+# Technical report
+_This part of the report is much more comprehensive than the executive summary. The audience is statistics/data-minded people, but you should NOT include code or unformatted R output here._
+
+
+## Introduction
+
+_Provide a brief introduction to your report and outline what the report will cover. This section is valuable for setting scope and expectations. _
+
+### Research questions
+_Use bullet points to to describe the research questions you are going to address. Write in full sentences._
+
+## Informative title for section addressing a research question
+
+_For each research question, you will want to briefly describe any data manipulation, show some exploratory plots/summary tables, report on any methods you use (i.e. models you fit) and the conclusions you draw from these_
+
+```{r}
+# This chunk provides an example of some things you can do with RMarkdown to make your report creation process easier
+
+# read in the data
+curr_employee <- read_csv("data/black-saber-current-employees.csv")
+hire_phase1 <- read_csv("data/phase1-new-grad-applicants-2020.csv")
+hire_phase2 <- read_csv("data/phase2-new-grad-applicants-2020.csv")
+hire_phase3 <- read_csv("data/phase3-new-grad-applicants-2020.csv")
+hire_final <- read_csv("data/final-hires-newgrad_2020.csv")
+# create a visualisation
+my_plot <- curr_employee %>% 
+  ggplot(aes(x = productivity)) +
+  geom_histogram(colour = "grey", fill = "#6C3082") +
+  theme_minimal() +
+  labs(title = "Look! A title. But do you want a title or a caption for your report?", x = "This is a changed x label")
+
+# save your plot in your images folder, you can specify the height and width, too
+# saving this means you can add the image to your exectuve summary without having to run or rerun the code, if you wish
+ggsave("images/example.png", width = 7, height = 4)
+
+# norice how the image is included with the ![](file/path.png) below
+```
+
+![](images/example.png)
+
+## Informative title for section addressing a research question
+## Informative title for section addressing a research question
+
+```{r include=FALSE}
+library(tidyverse)
+library(lme4)
+```
+
+## make data tidy
+
+```{r}
+#unique(curr_employee$role_seniority)
+
+#rename role seniority
+curr_employee <-curr_employee %>%
+  mutate(role_seniority= case_when(
+    role_seniority == "Entry-level" ~ "1",
+    role_seniority == "Junior I" ~"2",
+    role_seniority == "Junior II" ~"3",
+    role_seniority == "Senior I" ~"4",
+    role_seniority == "Senior II" ~"5",
+    role_seniority == "Senior III" ~"6",
+    role_seniority == "Manager" ~"7",
+    role_seniority == "Director" ~"8",
+    role_seniority == "Vice president" ~"9"
+  ))
+curr_employee$role_seniority <- as.numeric(curr_employee$role_seniority)
+curr_employee
+```
+
+
+```{r}
+curr_employee %>% 
+  ggplot(aes(x = productivity, y = role_seniority, color = gender)) +
+  geom_point() +
+  theme_minimal() +
+  facet_wrap(~leadership_for_level)
+```
+
+## test whether leadership for level is biased specially for exceeds expectation/need improvement
+```{r}
+curr_employee %>% 
+  ggplot(aes(x = productivity, y = salary, color = gender)) +
+  geom_point() +
+  theme_minimal() +
+  facet_wrap(~leadership_for_level)
+```
+
+
+```{r}
+level<- curr_employee%>%
+  group_by(employee_id,leadership_for_level,gender)%>%
+  summarise(b=n())%>%
+  pivot_wider(names_from= "leadership_for_level",values_from="b")%>%
+   mutate_if(is.numeric,replace_na, replace=0)
+level
+```
+
+```{r}
+clean <-curr_employee%>%
+  group_by(employee_id,gender,team)%>%
+  summarise(promotion_counts=max(role_seniority)-min(role_seniority),
+            num_quarters=n())%>%
+  full_join(level)%>%
+  filter(gender!="Prefer not to say")
+clean 
+```
+
+```{r}
+c<-clean <-curr_employee%>%
+  group_by(employee_id,gender,team)%>%
+  summarise(promotion_counts=max(role_seniority)-min(role_seniority),
+            num_quarters=n())%>%
+  filter(promotion_counts != 0) %>%
+  filter(team=="Software")%>%
+  left_join(curr_employee)
+c
+```
+
+update
+```{r}
+clean2 <-curr_employee%>%
+  group_by(employee_id,gender,team)%>%
+  summarise(promotion_counts=max(role_seniority)-min(role_seniority),
+            num_quarters=n())%>%
+  full_join(curr_employee)%>%
+  filter(gender!="Prefer not to say")
+clean2 
+```
+
+```{r}
+clean %>% 
+  ggplot(aes(x = `Exceeds expectations`, y = promotion_counts  , color = gender)) +
+  geom_point() +
+  theme_minimal()
+```
+
+```{r}
+clean%>%
+  ggplot() +
+  geom_bar(mapping = aes(x = , fill=gender))
+```
+
+```{r}
+clean%>%
+  ggplot() +
+  geom_bar(mapping = aes(x = promotion_counts, fill=gender))
+```
+
+Above is the graph of the counts of total promotions during individuals' career stage. Most people experience no promotion. Very few people have get promoted many times of  making for a distribution that appears to be far from normal. Therefore, Poisson regression should be used to model our data. Specifically, poisson random variables are often used to represent counts (i.e. counts of promotion) 
+
+## model selection
+However, a Poisson regression model is a good first choice because the responses are counts(non negative whole number), it is important to note that the counts are not directly comparable because they are measured in terms of different scales of time. In other words, we expect people working longer to be more likely to have more promotions.
+
+
+```{r}
+table1 <-table(clean$gender,clean$promotion_counts)
+table1
+```
+
+explore whether team is correlated with promotion
+```{r}
+table2 <-table(clean2$team,clean2$promotion_counts)
+table2
+```
+
+```{r}
+clean %>%
+  ggplot(mapping = aes(x = productivity_improvement, y = promotion_counts,color = gender))+
+  geom_point()
+```
+
+
+```{r}
+x <- curr_employee %>%
+  pivot_wider(-c(gender,team,leadership_for_level,productivity,salary),names_from= "financial_q",values_from="role_seniority")
+x
+```
+
+glmm
+
+```{r}
+##without random effect
+pro_model1<-glm(promotion_counts~gender+productivity+offset(num_quarters)+ leadership_for_level,data = clean2,family = quasipoisson(link="log"))
+summary(pro_model1)
+```
+
+```{r}
+##without random effect
+pro_model2<-glm(promotion_counts~gender+productivity+leadership_for_level,data = clean2,family = poisson(link="log"),offset = log(num_quarters))
+summary(pro_model2)
+```
+
+```{r}
+pro_model3<-lme4::glmer(promotion_counts ~gender+productivity+ offset(num_quarters)+
+                 leadership_for_level+(1|employee_id),data = clean2,family = poisson(link="log"))
+summary(pro_model3)
+```
+
+```{r}
+pro_model3<-lme4::glmer(promotion_counts ~gender+productivity+ offset(num_quarters)+
+                 leadership_for_level+(1|team)+(1|employee_id),data = clean2,family = poisson(link="log"))
+summary(pro_model3)
+```
+
+
+```{r}
+pro_model4<-glm(promotion_counts~gender+productivity+offset(num_quarters)+leadership_for_level+(1|employee_id)+team, data=clean2, family=poisson("log"))
+summary(pro_model4)
+```
+
+\newpage
+# Consultant information
+## Consultant profiles
+
+*Complete this section with a brief bio for each member of your group. If you are completing the project individually, you only need to complete one for yourself. In that case, change the title of this section to 'Consultant profile' instead. Examples below. This section is only marked for completeness, clarity and professionalism, not 'truth' so you can write it as if we're a few years in the future. Put your current degree in as completed and/or add your first choice grad school program, whatever you like. What skills related skills would you most like to highlight? What job title do you want?*
+
+**Statsy McStatsstats**. Statsy is a senior consultant with Eminence Analytics. She specializes in data visualization. Statsy earned her Bachelor of Science, Specialist in Statistics Methods and Practice, from the University of Toronto in 2023.
+
+**Datana Scatterplot**. Datana is a junior consultant with Eminence Analytics. They specialize in reproducible analysis and statistical communication. Datana earned their Bachelor of Science, Majoring in Computer Science and Statistics from the University of Toronto in 2024.
+
+## Code of ethical conduct
+
+_This section should be fairly short, no more than half a page. Assume a general audience, much like your executive summary._
+
+* _Make at least three relevant statements about your company’s approach to ethical statistical consulting. These should be appropriately in line with professional conduct advice like the (Statistical Society of Canada Code of Conduct)[https://ssc.ca/sites/default/files/data/Members/public/Accreditation/ethics_e.pdf] or the (Ethical Guidelines for Statistical Practice from the American Statistical Society)[https://www.amstat.org/ASA/Your-Career/Ethical-Guidelines-for-Statistical-Practice.aspx]. For example, "the customer is always right" ISN’T the type of thing an ethical statistical consultant would include._
+*	_Be very careful not to just copy and paste from these other documents! Put things in your own words._
+
+
+__Final advice: KNIT EARLY AND OFTEN!__
+
